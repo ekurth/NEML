@@ -121,15 +121,19 @@ class NEML_EXPORT History {
   template<class T>
   typename item_return<T>::type get(std::string name) const
   {
+#ifndef NO_CHECKS
     error_if_not_exists_(name);
     error_if_wrong_type_(name, GetStorageType<T>());
+#endif
     return T(&(storage_[loc_.at(name)]));
   }
 
   /// Get a pointer to the raw location of an item
   double * get_data(std::string name)
   {
+#ifndef NO_CHECKS
     error_if_not_exists_(name);
+#endif
     return &(storage_[loc_.at(name)]);
   }
 
@@ -257,8 +261,10 @@ struct History::item_return<double>{ typedef double & type;};
 template<>
 inline History::item_return<double>::type History::get<double>(std::string name) const
 {
+#ifndef NO_CHECKS
   error_if_not_exists_(name);
   error_if_wrong_type_(name, GetStorageType<double>());
+#endif
   return storage_[loc_.at(name)];
 }
 

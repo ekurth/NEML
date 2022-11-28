@@ -14,6 +14,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 ### Default to shared libs ###
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 
+### Offer dangerous option to remove runtime checks ###
+option(NO_RUNTIME_CHECKS "Turn off runtime error checking" OFF)
+if (NO_RUNTIME_CHECKS)
+    add_definitions(-DNO_CHECKS)
+endif()
+
 ### Select nonlinear solver ###
 set(SOLVER "newton" CACHE STRING "Nonlinear solver to use")
 set_property(CACHE SOLVER PROPERTY STRINGS newton nox)

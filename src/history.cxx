@@ -156,7 +156,9 @@ void History::make_store()
 
 void History::add(std::string name, StorageType type, size_t size)
 {
+#ifndef NO_CHECKS
   error_if_exists_(name);
+#endif
   order_.push_back(name);
   loc_.insert(std::pair<std::string,size_t>(name, size_));
   type_.insert(std::pair<std::string,StorageType>(name, type));
@@ -191,9 +193,10 @@ void History::scalar_multiply(double scalar)
 
 History & History::operator+=(const History & other)
 {
-  if (size() != other.size()) {
+#ifndef NO_CHECKS
+  if (size() != other.size())
     throw std::runtime_error("Histories to be added do not have the same size!");
-  }
+#endif
   for (size_t i = 0; i < size_; i++) {
     storage_[i] += other.rawptr()[i];
   }
@@ -283,9 +286,10 @@ History History::split(std::vector<std::string> sep, bool after) const
   // Check to see if the groups are contiguous and get the offset
   size_t i;
   for (i = 0; i < sep.size(); i++) {
-    if (sep[i] != order_[i]) {
+#ifndef NO_CHECKS
+    if (sep[i] != order_[i])
       throw std::runtime_error("History items to separate out must be contiguous!");
-    }
+#endif
   }
   // Special case where we need to return a zero history
   if (((i == order_.size()) && after) || ((i == 0) && (! after))) {
@@ -337,7 +341,9 @@ History History::subset(std::vector<std::string> vars) const
 {
   History nhist;
   for (auto var : vars) {
+#ifndef NO_CHECKS
     error_if_not_exists_(var);
+#endif
     size_t sz = storage_size.at(type_.at(var));
     nhist.add(var, type_.at(var), sz);
     std::copy(&storage_[loc_.at(var)], &storage_[loc_.at(var)]+sz, 
@@ -362,9 +368,11 @@ History History::postmultiply(const SymSymR4 & T)
 {
   // This is not a guarantee that this object has the right form,
   // but is better than nothing
+#ifndef NO_CHECKS
   if (size_ % 6 != 0)
     throw std::runtime_error("History object does not appear to be suitable "
                              "for postmultiplication by a SymSymR4!");
+#endif
 
   History nhist = this->deepcopy();
   double * data = new double [size_];
@@ -409,7 +417,9 @@ void History::unravel_hh(const History & base, double * const array)
 
 double * History::start_loc(std::string name)
 {
+#ifndef NO_CHECKS
   error_if_not_exists_(name);
+#endif
   return &(storage_[loc_.at(name)]);
 }
 

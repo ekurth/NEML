@@ -927,4 +927,39 @@
       </flow>
     </rule>
   </substep>
+   <Gr91 type="SingleCrystalModel">
+    <kinematics type="StandardKinematicModel">
+      <emodel type="IsotropicLinearElasticModel">
+        <m1_type>youngs</m1_type>
+        <m1>178000</m1>
+        <m2_type>poissons</m2_type>
+        <m2>0.3</m2>
+      </emodel>
+      <imodel type="CombinedInelasticity">
+        <models>
+          <imodel type="AsaroInelasticity">
+            <rule type="PowerLawSlipRule">
+              <resistance type="VoceSlipHardening">
+                <tau_sat>15.6030891</tau_sat>
+                <b>994.1452321</b>
+                <tau_0>31.52840347</tau_0>
+              </resistance>
+              <gamma0>5.20e-08</gamma0>
+              <n>12</n>
+            </rule>
+          </imodel>
+          <imodel type="PowerLawInelasticity">
+            <A>1.2e-09</A>
+            <n>1</n>
+          </imodel>
+        </models>
+      </imodel>
+    </kinematics>
+    <lattice type="CubicLattice">
+      <a>1.0</a>
+      <slip_systems>
+        1 1 1 ; 1 1 0
+      </slip_systems>
+    </lattice>
+  </Gr91>
 </materials>
