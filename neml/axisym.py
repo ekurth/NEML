@@ -283,7 +283,7 @@ class BreeProblem(VesselSectionProblem):
     pressure.
   """
   def __init__(self, rs, mats, ns, T, p, rtol = 1.0e-6, atol = 1.0e-8,
-      itype = "gauss", p_ext = lambda t: 0.0):
+      itype = "gauss", p_ext = lambda t: 0.0, driver_mats = None, driver_factor = None):
     """
       Parameters:
         rs      radii deliminating each region
@@ -302,6 +302,9 @@ class BreeProblem(VesselSectionProblem):
     super(BreeProblem, self).__init__(rs, mats, ns, T, p,
         rtol = rtol, atol = atol, p_ext = p_ext)
     
+    self.driver_mats = driver_mats
+    self.driver_factor = driver_factor
+
     self.regions = np.diff(self.rs)
     self.dlength = [r for r,n in zip(self.regions, self.ns) for i in range(n)]
 
@@ -317,6 +320,8 @@ class BreeProblem(VesselSectionProblem):
     self.weights = [wi * dl/2 for dl,n in zip(self.regions, self.ns) for 
         wi in ifn(n)[1]]
     materials = [m for m,n in zip(self.mats, self.ns) for i in range(n)]
+    if driver_mats:
+      driver_materials = [m for m,n in zip(self.driver_mats, self.ns) for i in range(n)] 
 
     self.npoints = len(self.ipoints)
     
@@ -326,12 +331,35 @@ class BreeProblem(VesselSectionProblem):
     self.barmodel = arbbar.BarModel()
     self.barmodel.add_node(1)
     self.barmodel.add_node(2)
-
-    for ipt, wt, mat in zip(self.ipoints, self.weights, materials):
-      def tlocal(tt, x = ipt):
-        return self.T(x, tt)
-      self.barmodel.add_edge(1,2, object = arbbar.Bar(mat, wt, 1.0, 
-        T = tlocal))
+    
+    # Do some error checking on the driver information
+    if driver_mats is not None:
+      if len(driver_mats) != len(mats):
+        raise ValueError("You must provide the number number of materials "
+                "and driver materials")
+      if driver_factor is None:
+        raise ValueError("You must provide a driver area factor")
+      self.use_driver = True
+    else:
+      self.use_driver = False
+    
+    k = 3
+    if (self.use_driver):
+      for ipt, wt, mat, dmat in zip(self.ipoints, self.weights, materials, driver_materials):
+        self.barmodel.add_node(k)
+        def tlocal(tt, x = ipt):
+          return self.T(x, tt)
+        self.barmodel.add_edge(1,k, object = arbbar.Bar(dmat, wt * driver_factor, 
+            1.0))
+        self.barmodel.add_edge(k, 2, object = arbbar.Bar(mat, wt, 1.0,
+            T = tlocal))
+        k += 1
+    else:
+      for ipt, wt, mat in zip(self.ipoints, self.weights, materials):
+        def tlocal(tt, x = ipt):
+          return self.T(x, tt)
+        self.barmodel.add_edge(1,2, object = arbbar.Bar(mat, wt, 1.0, 
+            T = tlocal))
 
     self.barmodel.add_displacement_bc(1, lambda t: 0.0)
     self.barmodel.add_force_bc(2, lambda t: self.P(t) * np.sum(self.weights))
@@ -340,22 +368,45 @@ class BreeProblem(VesselSectionProblem):
     self.axialstrain = [0.0]
     self.hoop = [self.P(0.0)]
     self.force = [0.0]
-    self.temperatures = [np.array([self.barmodel[1][2][i]['object'].temperature[-1]
-      for i in range(self.npoints)])]
-    self.stresses = [np.array([self.barmodel[1][2][i]['object'].stress[-1]
-      for i in range(self.npoints)])]
-    self.tstrains = [np.array([self.barmodel[1][2][i]['object'].tstrain[-1]
-      for i in range(self.npoints)])]
-    self.mstrains = [np.array([self.barmodel[1][2][i]['object'].mstrain[-1]
-      for i in range(self.npoints)])]
-    self.estrains = [np.array([self.barmodel[1][2][i]['object'].estrain[-1]
-      for i in range(self.npoints)])]
-    self.histories = [np.array([self.barmodel[1][2][i]['object'].history[-1]
-      for i in range(self.npoints)])]
+    self.temperatures = []
+    self.stresses = []
+    self.tstrains = []
+    self.mstrains = []
+    self.estrains = []
+    self.histories = []
+    self._update_results()
 
     self.energy = [0.0]
     self.work = [0.0]
 
+  def _update_results(self):
+    if self.use_driver:
+      self.temperatures.append(np.array([self.barmodel[i+3][2][0]['object'].temperature[-1]
+        for i in range(self.npoints)]))
+      self.stresses.append(np.array([self.barmodel[i+3][2][0]['object'].stress[-1]
+        for i in range(self.npoints)]))
+      self.tstrains.append(np.array([self.barmodel[i+3][2][0]['object'].tstrain[-1]
+        for i in range(self.npoints)]))
+      self.mstrains.append(np.array([self.barmodel[i+3][2][0]['object'].mstrain[-1]
+        for i in range(self.npoints)]))
+      self.estrains.append(np.array([self.barmodel[i+3][2][0]['object'].estrain[-1]
+        for i in range(self.npoints)]))
+      self.histories.append(np.array([self.barmodel[i+3][2][0]['object'].history[-1]
+        for i in range(self.npoints)]))
+    else:
+      self.temperatures.append(np.array([self.barmodel[1][2][i]['object'].temperature[-1]
+        for i in range(self.npoints)]))
+      self.stresses.append(np.array([self.barmodel[1][2][i]['object'].stress[-1]
+        for i in range(self.npoints)]))
+      self.tstrains.append(np.array([self.barmodel[1][2][i]['object'].tstrain[-1]
+        for i in range(self.npoints)]))
+      self.mstrains.append(np.array([self.barmodel[1][2][i]['object'].mstrain[-1]
+        for i in range(self.npoints)]))
+      self.estrains.append(np.array([self.barmodel[1][2][i]['object'].estrain[-1]
+        for i in range(self.npoints)]))
+      self.histories.append(np.array([self.barmodel[1][2][i]['object'].history[-1]
+        for i in range(self.npoints)]))
+     
   def update_loading(self, new_p, new_T, new_p_ext = lambda t: 0.0):
     """
       Impose new loading functions
@@ -399,23 +450,15 @@ class BreeProblem(VesselSectionProblem):
     self.force.append(self.barmodel.nodes[2]['forces'][-1])
     self.axialstrain.append(self.barmodel.nodes[2]['displacements'][-1])
     
-    self.temperatures.append(np.array([self.barmodel[1][2][i]['object'].temperature[-1]
-      for i in range(self.npoints)]))
-    self.stresses.append(np.array([self.barmodel[1][2][i]['object'].stress[-1]
-      for i in range(self.npoints)]))
-    self.tstrains.append(np.array([self.barmodel[1][2][i]['object'].tstrain[-1]
-      for i in range(self.npoints)]))
-    self.mstrains.append(np.array([self.barmodel[1][2][i]['object'].mstrain[-1]
-      for i in range(self.npoints)]))
-    self.estrains.append(np.array([self.barmodel[1][2][i]['object'].estrain[-1]
-      for i in range(self.npoints)]))
-    self.histories.append(np.array([self.barmodel[1][2][i]['object'].history[-1]
-      for i in range(self.npoints)]))
+    self._update_results()
 
     self.energy.append(0.0)
     self.work.append(0.0)
     for i,wt in enumerate(self.weights):
-      me = self.barmodel[1][2][i]['object']
+      if self.use_driver:
+        me = self.barmodel[i+3][2][0]['object']
+      else:
+        me = self.barmodel[1][2][i]['object']
       self.energy[-1] += wt*me.energy[-1]*me.A*me.l
       self.work[-1] += wt*me.dissipation[-1]*me.A*me.l
     
