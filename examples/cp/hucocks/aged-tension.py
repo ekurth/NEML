@@ -7,7 +7,7 @@ from neml import drivers
 import matplotlib.pyplot as plt
 
 def integrate_case(model, time, T):
-  driver = drivers.Driver_sd(model, verbose = True, T_init = T)
+  driver = drivers.Driver(model, verbose = True, T_init = T)
 
   times = np.insert(np.logspace(0,np.log10(time),100) * 3600.0, 0, [0])
   times = np.insert(times, 1, [1.0e2])

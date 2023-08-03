@@ -37,7 +37,7 @@ def run_compare_test(model, target_times, target_temps, target_strains):
   """
     Run through a single test
   """
-  driver = drivers.Driver_sd(model)
+  driver = drivers.Driver(model)
   for t,e,T in zip(target_times[1:], target_strains[1:], target_temps[1:]):
     driver.strain_step(e,t,T)
 

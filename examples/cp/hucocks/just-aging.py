@@ -14,7 +14,7 @@ L = crystallography.CubicLattice(1.0)
 L.add_slip_system([1,1,0],[1,1,1])
 
 def integrate_case(model, times, T):
-  driver = drivers.Driver_sd(model, verbose = True, T_init = T)
+  driver = drivers.Driver(model, verbose = True, T_init = T)
   
   for t in times[1:]:
       driver.strain_step(np.zeros((6,)), t, T)

@@ -20,7 +20,7 @@ def drive_all_strain(model, emax, erate, nsteps, T):
     times = np.linspace(0, tmax, nsteps)
     strains = np.linspace(np.zeros((6,)), emax, nsteps)
 
-    driver = drivers.Driver_sd(model, T_init = T, no_thermal_strain = True)
+    driver = drivers.Driver(model, T_init = T, no_thermal_strain = True)
 
     for t,e in zip(times[1:], strains[1:]):
         driver.strain_step(e, t, T)

@@ -19,7 +19,7 @@ def load_unload(model, emax, erate, nsteps, E, ff = 1.0, verbose = False, miter 
   
   sdir = np.array([1.0,0,0,0,0,0])
 
-  driver = drivers.Driver_sd(model, verbose = verbose, miter = miter)
+  driver = drivers.Driver(model, verbose = verbose, miter = miter)
 
   for e in np.linspace(0,emax,nsteps)[1:]:
     driver.erate_step(sdir, erate, e/erate, T)

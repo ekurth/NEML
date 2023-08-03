@@ -119,9 +119,6 @@ the NEML models in uniaxial stress states.
 .. autoclass:: Driver
    :members:
 
-.. autoclass:: Driver_sd
-   :members:
-
 Helpers
 -------
 

@@ -15,7 +15,7 @@ class Driver(object):
     results.
   """
   def __init__(self, model, verbose = False, rtol = 1.0e-6, atol = 1.0e-10,
-      miter = 25, T_init = 0.0, no_thermal_strain = False):
+      miter = 25, T_init = 0.0, no_thermal_strain = False, large_kinematics = False):
     """
       Parameters:
         model:       material model to play with
@@ -39,6 +39,12 @@ class Driver(object):
 
     self.u_int = [0.0]
     self.p_int = [0.0]
+
+    self.strain_int = [np.zeros((6,))]
+    self.thermal_strain_int = [np.zeros((6,))]
+    self.mechanical_strain_int = [np.zeros((6,))]
+
+    self.large_kinematics = large_kinematics
 
   @property
   def stress(self):
@@ -67,25 +73,6 @@ class Driver(object):
   @property
   def p(self):
     return np.array(self.p_int)
-
-
-class Driver_sd(Driver):
-  """
-    Superclass of generic small strain drivers, contains generic step methods.
-  """
-  def __init__(self, *args, **kwargs):
-    """
-      Parameters:
-        model:       material model to play with
-        verbose:     verbose output
-        rtol:        relative tolerance, where needed
-        atol:        absolute tolerance, where needed
-        miter:       maximum iterations, where needed
-    """
-    super(Driver_sd, self).__init__(*args, **kwargs)
-    self.strain_int = [np.zeros((6,))]
-    self.thermal_strain_int = [np.zeros((6,))]
-    self.mechanical_strain_int = [np.zeros((6,))]
 
   def solve_try(self, RJ, x0, extra = []):
     """
@@ -177,10 +164,19 @@ class Driver_sd(Driver):
         T_np1:       next temperature
     """
     enext = self.update_thermal_strain(T_np1)
-    s_np1, h_np1, A_np1, u_np1, p_np1 = self.model.update_sd(e_np1 - enext,
-        self.mechanical_strain_int[-1],
-        T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
-        self.stored_int[-1], self.u_int[-1], self.p_int[-1])
+    if self.large_kinematics:
+        s_np1, h_np1, A_np1, _, u_np1, p_np1 = self.model.update_ld_inc(
+                e_np1 - enext, self.mechanical_strain_int[-1],
+                np.zeros((3,)), np.zeros((3,)),
+                T_np1, self.T_int[-1], 
+                t_np1, self.t_int[-1], 
+                self.stress_int[-1], self.stored_int[-1], 
+                self.u_int[-1], self.p_int[-1])
+    else:
+        s_np1, h_np1, A_np1, u_np1, p_np1 = self.model.update_sd(e_np1 - enext,
+            self.mechanical_strain_int[-1],
+            T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
+            self.stored_int[-1], self.u_int[-1], self.p_int[-1])
 
     self.strain_int.append(np.copy(e_np1))
     self.mechanical_strain_int.append(e_np1 - enext)
@@ -203,12 +199,21 @@ class Driver_sd(Driver):
     """
     enext = self.update_thermal_strain(T_np1)
     def RJ(e):
-      s, h, A, u, p = self.model.update_sd(e - enext, self.mechanical_strain_int[-1],
-        T_np1, self.T_int[-1], t_np1, self.t_int[-1],
-        self.stress_int[-1],
-        self.stored_int[-1], self.u_int[-1], self.p_int[-1])
-      R = s - s_np1
-      return R, A
+        if self.large_kinematics:
+            s, h, A, _, u, p = self.model.update_ld_inc(
+                    e - enext, self.mechanical_strain_int[-1],
+                    np.zeros((3,)), np.zeros((3,)),
+                    T_np1, self.T_int[-1], 
+                    t_np1, self.t_int[-1], 
+                    self.stress_int[-1], self.stored_int[-1], 
+                    self.u_int[-1], self.p_int[-1])
+        else:
+            s, h, A, u, p = self.model.update_sd(e - enext, self.mechanical_strain_int[-1],
+                    T_np1, self.T_int[-1], t_np1, self.t_int[-1],
+                    self.stress_int[-1],
+                    self.stored_int[-1], self.u_int[-1], self.p_int[-1])
+        R = s - s_np1
+        return R, A
 
     if len(self.strain_int) > 1:
       inc = self.strain_int[-1] - self.strain_int[-2]
@@ -241,11 +246,20 @@ class Driver_sd(Driver):
     def RJ(x):
       a = x[0]
       e_inc = x[1:]
-      s, h, A, u, p = self.model.update_sd(self.strain_int[-1] + e_inc - enext,
-          self.mechanical_strain_int[-1],
-          T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
-          self.stored_int[-1],
-          self.u_int[-1], self.p_int[-1])
+      if self.large_kinematics:
+          s, h, A, _, u, p = self.model.update_ld_inc(
+                self.strain_int[-1] + e_inc - enext, self.mechanical_strain_int[-1],
+                np.zeros((3,)), np.zeros((3,)),
+                T_np1, self.T_int[-1], 
+                t_np1, self.t_int[-1], 
+                self.stress_int[-1], self.stored_int[-1], 
+                self.u_int[-1], self.p_int[-1])
+      else:
+          s, h, A, u, p = self.model.update_sd(self.strain_int[-1] + e_inc - enext,
+              self.mechanical_strain_int[-1],
+              T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
+              self.stored_int[-1],
+              self.u_int[-1], self.p_int[-1])
 
       R = np.zeros((7,))
       J = np.zeros((7,7))
@@ -334,22 +348,31 @@ class Driver_sd(Driver):
     enext = self.update_thermal_strain(T_np1)
     oset = sorted(list(set(range(6)) - set([i])))
     def RJ(e_np1):
-      s, h, A, u, p = self.model.update_sd(e_np1 - enext,
-          self.mechanical_strain_int[-1],
-          T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
-          self.stored_int[-1], self.u_int[-1], self.p_int[-1])
+        if self.large_kinematics:
+            s, h, A, _, u, p = self.model.update_ld_inc(
+                    e_np1 - enext, self.mechanical_strain_int[-1],
+                    np.zeros((3,)), np.zeros((3,)),
+                    T_np1, self.T_int[-1], 
+                    t_np1, self.t_int[-1], 
+                    self.stress_int[-1], self.stored_int[-1], 
+                    self.u_int[-1], self.p_int[-1])
+        else:
+            s, h, A, u, p = self.model.update_sd(e_np1 - enext,
+                    self.mechanical_strain_int[-1],
+                    T_np1, self.T_int[-1], t_np1, self.t_int[-1], self.stress_int[-1],
+                    self.stored_int[-1], self.u_int[-1], self.p_int[-1])
 
-      R = np.zeros((6,))
-      R[0] = (e_np1[i] - self.strain_int[-1][i]
-          ) + (s[i] - self.stress_int[-1][i]) / E * (q - 1)
-      R[1:] = s[oset] - self.stress_int[-1][oset]
+        R = np.zeros((6,))
+        R[0] = (e_np1[i] - self.strain_int[-1][i]
+                ) + (s[i] - self.stress_int[-1][i]) / E * (q - 1)
+        R[1:] = s[oset] - self.stress_int[-1][oset]
 
-      J = np.zeros((6,6))
-      J[0,0] = 1.0
-      J[0,:] += A[i,:] / E * (q - 1)
-      J[1:,:] = A[oset,:][:]
+        J = np.zeros((6,6))
+        J[0,0] = 1.0
+        J[0,:] += A[i,:] / E * (q - 1)
+        J[1:,:] = A[oset,:][:]
 
-      return R, J
+        return R, J
 
     x0 = np.copy(self.strain_int[-1])
 
@@ -361,7 +384,7 @@ def uniaxial_test(model, erate, T = 300.0, emax = 0.05, nsteps = 250,
     sdir = np.array([1,0,0,0,0,0]), verbose = False,
     offset = 0.2/100.0, history = None, tdir = np.array([0,1,0,0,0,0]),
     rtol = 1e-6, atol = 1e-10, miter = 25,
-    full_results = False):
+    full_results = False, large_kinematics = False):
   """
     Make a uniaxial stress/strain curve
 
@@ -378,6 +401,7 @@ def uniaxial_test(model, erate, T = 300.0, emax = 0.05, nsteps = 250,
       offset:           used to calculate yield stress
       history:          initial model history
       tdir:             transverse direction for Poisson's ratio
+      large_kinematics: if true use log strain/log stress
 
     Returns:
       dict:             results dictionary containing...
@@ -397,8 +421,8 @@ def uniaxial_test(model, erate, T = 300.0, emax = 0.05, nsteps = 250,
       ================= ============================================
   """
   e_inc = emax / nsteps
-  driver = Driver_sd(model, verbose = verbose, T_init = T, rtol = rtol,
-      atol = atol, miter = miter)
+  driver = Driver(model, verbose = verbose, T_init = T, rtol = rtol,
+      atol = atol, miter = miter, large_kinematics = large_kinematics)
   if history is not None:
     driver.stored_int[0] = history
 
@@ -482,7 +506,7 @@ def strain_cyclic(model, emax, R, erate, ncycles, T = 300.0, nsteps = 50,
       ============= ========================
   """
   # Setup
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   emin = emax * R
   if hold_time:
     if np.isscalar(hold_time):
@@ -633,7 +657,7 @@ def strain_cyclic_extrapolated(model, emax, R, erate, ncycles, T = 300.0, nsteps
       ============= ========================
   """
   # Setup
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   emin = emax * R
   if hold_time:
     if np.isscalar(hold_time):
@@ -866,7 +890,7 @@ def strain_cyclic_followup(model, emax, R, erate, ncycles,
   res = uniaxial_test(model, erate, T = T, emax = 1.0e-4, nsteps = 2)
   E = res['youngs']
 
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   emin = emax * R
   if hold_time:
     if np.isscalar(hold_time):
@@ -1039,7 +1063,7 @@ def stress_cyclic(model, smax, R, srate, ncycles, T = 300.0, nsteps = 50,
       ============= ========================
   """
   # Setup
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   smin = smax * R
   if hold_time:
     if np.isscalar(hold_time):
@@ -1193,7 +1217,7 @@ def stress_relaxation(model, emax, erate, hold, T = 300.0, nsteps = 250,
       ============== ======================
   """
   # Setup
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   time = [0]
   strain = [0]
   stress = [0]
@@ -1272,7 +1296,7 @@ def creep(model, smax, srate, hold, T = 300.0, nsteps = 250,
       dict:          results dictionary
   """
   # Setup
-  driver = Driver_sd(model, verbose = verbose, T_init = T, miter = miter)
+  driver = Driver(model, verbose = verbose, T_init = T, miter = miter)
   if history is not None:
     driver.stored_int[0] = history
   time = [0]
@@ -1372,7 +1396,7 @@ def thermomechanical_strain_raw(model, time, temperature, strain,
   """
   stress = np.zeros((len(time),))
   mechstrain = np.zeros((len(time),))
-  driver = Driver_sd(model, verbose = verbose, T_init = temperature[0])
+  driver = Driver(model, verbose = verbose, T_init = temperature[0])
 
   einc = None
   ainc = None
@@ -1430,7 +1454,7 @@ def rate_jump_test(model, erates, T = 300.0, e_per = 0.01, nsteps_per = 100,
       dict:          results dictionary
   """
   e_inc = e_per / nsteps_per
-  driver = Driver_sd(model, verbose = verbose, T_init = T)
+  driver = Driver(model, verbose = verbose, T_init = T)
   if history is not None:
     driver.stored_int[0] = history
   strain = [0.0]

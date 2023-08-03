@@ -28,7 +28,7 @@ if __name__ == "__main__":
     times = np.insert(times, 1, [1.0e2])
 
     for T in Ts:
-        driver = drivers.Driver_sd(smodel, verbose=True, T_init=T)
+        driver = drivers.Driver(smodel, verbose=True, T_init=T)
 
         for t in times[1:]:
             print("t = {:.3E}".format(t))

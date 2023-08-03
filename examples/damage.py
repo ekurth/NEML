@@ -71,7 +71,7 @@ def unload_ex():
   model = damage.NEMLScalarDamagedModel_sd(elastic, bmodel,
           damage.PowerLawDamage(elastic, A, a))
 
-  driver = drivers.Driver_sd(model)
+  driver = drivers.Driver(model)
   nsteps = 25
   sdir = np.array([1,0,0,0,0,0])
   erate = 1.0e-5

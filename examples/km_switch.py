@@ -12,7 +12,7 @@ def rate_jump_test(model, erates, strains, T, nsteps = 50,
   """
     Run a strain rate jump test.
   """
-  driver = drivers.Driver_sd(model)
+  driver = drivers.Driver(model)
   strain = []
   stress = []
 
@@ -30,7 +30,7 @@ def temp_jump_test(model, erate, strains, Ts, nsteps = 50,
   """
     Run a temperature jump test.
   """
-  driver = drivers.Driver_sd(model)
+  driver = drivers.Driver(model)
   strain = []
   stress = []
 
